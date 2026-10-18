@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src https: data:; connect-src https://api.github.com 'self'; base-uri 'none'; form-action 'none'">
+<title>Video Library admin</title>
+<style>
+:root{
+  --bg:#11141d; --surface:#1a1f2c; --surface2:#232a3a; --line:#2e3649;
+  --text:#eef1f7; --muted:#9aa4ba; --accent:#f4b942; --accent-ink:#1a1400;
+  --radius:16px;
+}
+*{box-sizing:border-box}
+[hidden]{display:none !important}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; min-height:100vh; display:flex; flex-direction:column;
+  background:var(--bg); color:var(--text);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  line-height:1.5;
+}
+a{color:inherit}
+:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
+
+header{padding:44px 20px 12px; max-width:1180px; width:100%; margin:0 auto}
+h1{
+  margin:0 0 6px; font-family:Georgia,"Times New Roman",serif;
+  font-size:clamp(2.2rem,7vw,3.6rem); font-weight:700; letter-spacing:-.02em; line-height:1.1;
+}
+.tagline{margin:0 0 24px; color:var(--muted); max-width:46ch}
+
+.search{position:relative; max-width:640px}
+.search input{
+  width:100%; padding:16px 48px 16px 20px; font-size:1.05rem; color:var(--text);
+  background:var(--surface); border:1.5px solid var(--line); border-radius:999px;
+  transition:border-color .2s, background .2s;
+  -webkit-appearance:none; appearance:none;
+}
+.search input::placeholder{color:var(--muted)}
+.search input:focus{outline:none; border-color:var(--accent); background:var(--surface2)}
+.clear{
+  position:absolute; right:8px; top:50%; transform:translateY(-50%);
+  width:36px; height:36px; border:0; border-radius:50%;
+  background:var(--line); color:var(--text); font-size:1.1rem; cursor:pointer; display:none;
+}
+.clear.show{display:block}
+
+main{flex:1; max-width:1180px; width:100%; margin:0 auto; padding:8px 20px 40px}
+
+.chips{
+  display:flex; gap:10px; overflow-x:auto; padding:14px 0 16px; margin:0 -20px;
+  padding-left:20px; padding-right:20px; scrollbar-width:none;
+}
+.chips::-webkit-scrollbar{display:none}
+.chip{
+  flex:0 0 auto; padding:9px 18px; border-radius:999px; cursor:pointer;
+  background:var(--surface); color:var(--text); border:1.5px solid var(--line);
+  font-size:.95rem; font-family:inherit; transition:background .2s,border-color .2s,color .2s;
+}
+.chip:hover{border-color:var(--accent)}
+.chip[aria-pressed="true"]{background:var(--accent); border-color:var(--accent); color:var(--accent-ink); font-weight:600}
+
+.count{color:var(--muted); font-size:.92rem; margin:0 0 16px}
+
+.grid{
+  display:grid; gap:20px; list-style:none; margin:0; padding:0;
+  grid-template-columns:repeat(auto-fill,minmax(250px,1fr));
+}
+.card{
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  overflow:hidden; display:flex; flex-direction:column; cursor:pointer;
+  transition:transform .2s ease, border-color .2s ease, box-shadow .2s ease;
+}
+@media (hover:hover){
+  .card:hover{transform:translateY(-4px); border-color:var(--accent); box-shadow:0 14px 30px rgba(0,0,0,.45)}
+  .card:hover .thumb img{transform:scale(1.05)}
+}
+.thumb{position:relative; aspect-ratio:16/9; background:var(--surface2); overflow:hidden; display:block}
+.thumb img{width:100%; height:100%; object-fit:cover; display:block; transition:transform .35s ease}
+.fallback{
+  width:100%; height:100%; display:flex; align-items:center; justify-content:center;
+  font-family:Georgia,serif; font-size:3.2rem; font-weight:700; color:rgba(255,255,255,.92);
+}
+.play{
+  position:absolute; right:12px; bottom:12px; width:44px; height:44px; border-radius:50%;
+  background:rgba(17,20,29,.75); display:flex; align-items:center; justify-content:center;
+  backdrop-filter:blur(4px);
+}
+.play::before{
+  content:""; margin-left:4px; border-style:solid; border-width:8px 0 8px 13px;
+  border-color:transparent transparent transparent var(--accent);
+}
+.body{padding:14px 16px 16px; display:flex; flex-direction:column; gap:10px; flex:1}
+.cat{
+  align-self:flex-start; font-size:.8rem; color:var(--accent);
+  border:1px solid rgba(244,185,66,.45); border-radius:999px; padding:2px 10px;
+}
+.title{margin:0; font-size:1.05rem; line-height:1.3; font-weight:600; overflow-wrap:anywhere}
+.watch{
+  margin-top:auto; display:block; text-align:center; text-decoration:none;
+  padding:11px 14px; border-radius:12px; font-weight:700;
+  background:var(--accent); color:var(--accent-ink); transition:filter .2s;
+}
+.watch:hover{filter:brightness(1.1)}
+
+.empty{
+  text-align:center; padding:56px 20px; background:var(--surface);
+  border:1px dashed var(--line); border-radius:var(--radius);
+}
+.empty h2{margin:0 0 8px; font-family:Georgia,serif}
+.empty p{margin:0 auto 18px; color:var(--muted); max-width:42ch}
+.empty button{
+  padding:11px 20px; border-radius:12px; border:0; cursor:pointer; font:inherit; font-weight:700;
+  background:var(--accent); color:var(--accent-ink);
+}
+
+footer{
+  padding:22px 20px 30px; text-align:center; color:var(--muted); font-size:.82rem;
+  border-top:1px solid var(--line);
+}
+footer p{margin:4px auto; max-width:60ch}
+
+@media (max-width:480px){
+  header{padding-top:32px}
+  .grid{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none !important}
+}
+
+/* ---------- Admin dashboard (only shown with ?admin) ---------- */
+.admin{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin:8px 0 28px}
+.admin-head h2,.admin > h3,.admin-cols h3{margin:0 0 10px;font-family:Georgia,serif}
+.admin-head h2{font-size:1.5rem}.admin > h3,.admin-cols h3{font-size:1.1rem;margin-top:6px}
+.admin-head{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.pill{font-size:.8rem;padding:4px 12px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.pill.warn{color:var(--accent);border-color:rgba(244,185,66,.6)}
+.admin-note{margin:6px 0 14px;color:var(--muted);font-size:.9rem}
+.warnbox{margin:10px 0 16px;padding:14px 16px;border-radius:12px;border:2px solid var(--accent);background:rgba(244,185,66,.12);font-size:.95rem}
+.warnbox strong{display:block;margin-bottom:6px;color:var(--accent);font-size:1.02rem}
+.warnbox p{margin:0 0 8px}.warnbox p:last-child{margin-bottom:0}
+details.howto{margin:16px 0 0;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:4px 14px}
+details.howto summary{cursor:pointer;padding:12px 0;font-weight:700;min-height:44px}
+details.howto h4{margin:14px 0 6px;font-size:1rem;color:var(--accent)}
+details.howto ol,details.howto ul{margin:0 0 10px;padding-left:22px;color:var(--text);font-size:.93rem}
+details.howto li{margin:0 0 6px}
+details.howto p{margin:0 0 10px;font-size:.93rem;color:var(--muted)}
+.msg{padding:12px 14px;border-radius:12px;margin:0 0 14px;font-size:.95rem;border:1px solid}
+.msg.ok{background:rgba(95,211,141,.12);border-color:rgba(95,211,141,.5);color:#8ee6b0}
+.msg.err{background:rgba(255,122,122,.12);border-color:rgba(255,122,122,.55);color:#ffa1a1}
+.admin-cols{display:grid;gap:20px;grid-template-columns:1fr}
+@media (min-width:760px){.admin-cols{grid-template-columns:1.2fr 1fr}}
+.admin label{display:block;margin:0 0 12px;font-size:.9rem;color:var(--muted)}
+.admin input{width:100%;margin-top:5px;padding:13px 14px;font:inherit;font-size:16px;color:var(--text);background:var(--bg);border:1.5px solid var(--line);border-radius:12px}
+.admin input:focus{outline:none;border-color:var(--accent)}
+.row{display:flex;flex-wrap:wrap;gap:10px;margin-top:4px}
+.btn{min-height:46px;padding:10px 18px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface2);color:var(--text);font:inherit;font-weight:600;cursor:pointer}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.danger{color:#ffa1a1;border-color:rgba(255,122,122,.5)}
+.btn.small{min-height:40px;padding:6px 14px;font-size:.9rem}
+.grid.one{grid-template-columns:1fr;max-width:320px}
+.card.preview{pointer-events:none}
+.vlist{list-style:none;margin:0 0 18px;padding:0;display:grid;gap:8px}
+.vlist li{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--bg);border:1px solid var(--line);border-radius:12px}
+.vlist .vt{flex:1 1 200px;min-width:0;overflow-wrap:anywhere}
+.vlist .vt small{display:block;color:var(--muted)}
+.exportbox{border-top:1px solid var(--line);padding-top:16px}
+.exportbox p{color:var(--muted);font-size:.88rem;margin:12px 0 0}
+.admin textarea{width:100%;margin-top:5px;padding:12px;font:inherit;font-size:16px;color:var(--text);background:var(--bg);border:1.5px solid var(--line);border-radius:12px}
+body>main{padding-top:8px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Video admin</h1>
+  <p class="tagline">Add, edit and delete videos, preview them, then publish.</p>
+</header>
+<main><div id="adminRoot"></div><noscript><p>This page needs JavaScript.</p></noscript></main>
+<script>
+/* No passwords, tokens or keys are stored in this file. Publishing only works if GitHub
+   accepts the token you paste in at sign-in; the token is kept in memory only. */
+(function () {
+  "use strict";
+  var ALL = "All", DRAFT_KEY = "videoLibraryAdminDraft_v2", PREF_KEY = "videoLibraryAdminRepo_v2";
+  var API = "https://api.github.com", FILE = "videos.js";
+  var token = "", repo = { owner: "", name: "" }, signedIn = false, loadedSha = null, srcId = "export";
+  var data = [], original = "[]", editing = -1, A = {};
+  var root = document.getElementById("adminRoot");
+
+  function $(id) { return document.getElementById(id); }
+  function clean(v) {
+    v = v || {};
+    return {
+      title: String(v.title || "").trim(),
+      category: String(v.category || "").trim() || "Other",
+      url: String(v.url || "").trim(),
+      thumbnail: String(v.thumbnail || "").trim(),
+      keywords: Array.isArray(v.keywords) ? v.keywords.join(" ") : String(v.keywords || "").trim()
+    };
+  }
+  function isHttp(u) { return /^https?:\/\/\S+/i.test(u); }
+  function listable(v) { return !!(v.title && isHttp(v.url)); }
+  function hashText(str) {
+    var h = 2166136261;
+    for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+    return String(h);
+  }
+  function isDirty() { return JSON.stringify(data) !== original; }
+  function categories() {
+    var seen = {}, list = [];
+    data.forEach(function (v) { if (v.category && !seen[v.category]) { seen[v.category] = 1; list.push(v.category); } });
+    return list.sort(function (a, b) { return a.localeCompare(b); });
+  }
+
+  /* ---------- reading and writing videos.js ---------- */
+  function strVal(s) {
+    if (s.charAt(0) === '"') { try { return JSON.parse(s); } catch (e) {} }
+    return s.slice(1, -1).replace(/\\(.)/g, "$1");
+  }
+  // Reads videos.js, or the VIDEOS list inside an old index.html. Returns an array, or null if nothing found.
+  function parseVideos(text) {
+    text = String(text || "");
+    var i = text.indexOf("window.VIDEOS");
+    if (i < 0) i = text.indexOf("/* >>> VIDEOS-START */");
+    if (i < 0) { var m = /\b(?:const|let|var)\s+VIDEOS\s*=/.exec(text); if (m) i = m.index; }
+    var seg = i >= 0 ? text.slice(i) : text;
+    var e = seg.indexOf("/* <<< VIDEOS-END */"); if (e >= 0) seg = seg.slice(0, e);
+    var a = seg.indexOf("["), b = seg.lastIndexOf("]");
+    if (a < 0 || b < a) return null;
+    var keep = function (v) { return v.title || v.url; };
+    try { var arr = JSON.parse(seg.slice(a, b + 1)); if (Array.isArray(arr)) return arr.map(clean).filter(keep); } catch (err) {}
+    var re = /["']?\b(title|category|url|thumbnail|keywords)["']?\s*:\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')/g, out = [], cur = null, mt;
+    while ((mt = re.exec(seg))) {
+      if (mt[1] === "title" || !cur) { if (cur) out.push(cur); cur = {}; }
+      cur[mt[1]] = strVal(mt[2]);
+    }
+    if (cur) out.push(cur);
+    return out.length ? out.map(clean).filter(keep) : null;
+  }
+  function buildVideosJs(list) {
+    var json = JSON.stringify(list.map(clean), null, 2).replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
+    return "/* Video catalogue. Managed with admin.html. If you edit by hand, keep it valid JSON. */\nwindow.VIDEOS = " + json + ";\n";
+  }
+  function b64ToText(b) {
+    var bin = atob(b.replace(/\s/g, "")), bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  }
+  function textToB64(t) {
+    var bytes = new TextEncoder().encode(t), s = "";
+    for (var i = 0; i < bytes.length; i += 8192) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
+    return btoa(s);
+  }
+
+  /* ---------- GitHub API (the token is only ever sent to api.github.com) ---------- */
+  async function gh(path, method, body) {
+    var headers = { "Accept": "application/vnd.github+json", "Authorization": "Bearer " + token, "X-GitHub-Api-Version": "2022-11-28" };
+    if (body) headers["Content-Type"] = "application/json";
+    var res = await fetch(API + path, { method: method || "GET", headers: headers, cache: "no-store", body: body ? JSON.stringify(body) : undefined });
+    var json = null; try { json = await res.json(); } catch (e) {}
+    return { ok: res.ok, status: res.status, json: json };
+  }
+  function ghError(r) {
+    if (r.status === 401) return "GitHub did not accept the token. Check that you copied all of it and that it has not expired.";
+    if (r.status === 403) return "GitHub refused the request (403). The token probably does not have \u201cContents: Read and write\u201d permission for this repository, or you have made too many requests. Wait a few minutes and try again.";
+    if (r.status === 404) return "GitHub could not find that repository. Check the username and repository name, and that the token was given access to this repository.";
+    if (r.status === 409 || r.status === 422) return "GitHub says the file changed while you were publishing. Tap Publish again.";
+    return "GitHub returned an error (" + r.status + ")" + (r.json && r.json.message ? ": " + r.json.message : "") + ".";
+  }
+  var NET = "Could not reach GitHub. Check your internet connection and try again.";
+  function repoPath() { return "/repos/" + repo.owner + "/" + repo.name; }
+
+  /* ---------- messages ---------- */
+  function showMsg(text, ok) {
+    if (!A.msg) { var l = $("l_msg"); if (l) { l.textContent = text; l.className = "msg " + (ok ? "ok" : "err"); l.hidden = false; } return; }
+    A.msg.textContent = text; A.msg.className = "msg " + (ok ? "ok" : "err"); A.msg.hidden = false;
+    A.msg.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+  function persistDraft() {
+    try {
+      if (isDirty()) localStorage.setItem(DRAFT_KEY, JSON.stringify({ src: srcId, base: hashText(original), data: data }));
+      else localStorage.removeItem(DRAFT_KEY);
+    } catch (e) {}
+  }
+  function updatePill() {
+    var d = isDirty();
+    A.pill.textContent = (signedIn ? repo.owner + "/" + repo.name : "Export-only mode") + " \u2022 " + (d ? "unpublished changes" : "no changes");
+    A.pill.className = "pill" + (d ? " warn" : "");
+    A.discard.hidden = !d;
+  }
+  function renderFull() {
+    var l = data.filter(listable);
+    A.full.textContent = "";
+    l.forEach(function (v) { A.full.appendChild(makeCard(v, true)); });
+    $("a_fulln").textContent = l.length;
+  }
+  function refresh() { renderAdminList(); renderFull(); updatePill(); }
+
+    var palette = ["#7c5cff,#3b2a8c", "#ff6b6b,#a12c4a", "#16b8a6,#0b5e6b", "#f4b942,#b5541b", "#4da3ff,#27428f", "#e052b5,#6a2a8f"];
+  function colorFor(text) {
+    var h = 0;
+    for (var i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) >>> 0;
+    var p = palette[h % palette.length].split(",");
+    return "linear-gradient(135deg," + p[0] + "," + p[1] + ")";
+  }
+
+  function openVideo(url) { window.open(url, "_blank", "noopener,noreferrer"); }
+
+  function makeFallback(v) {
+    var d = document.createElement("div");
+    d.className = "fallback";
+    d.style.background = colorFor(v.title);
+    d.textContent = v.title.trim().charAt(0).toUpperCase() || "?";
+    d.setAttribute("aria-hidden", "true");
+    return d;
+  }
+
+  function makeCard(v, isPreview) {
+    var li = document.createElement("li");
+    li.className = "card" + (isPreview ? " preview" : "");
+
+    var thumb = document.createElement("a");
+    thumb.className = "thumb";
+    thumb.href = v.url; thumb.target = "_blank"; thumb.rel = "noopener noreferrer";
+    thumb.tabIndex = -1;
+    thumb.setAttribute("aria-hidden", "true");
+    if (v.thumbnail) {
+      var img = document.createElement("img");
+      img.loading = "lazy"; img.alt = "";
+      img.referrerPolicy = "no-referrer";
+      img.onerror = function () {
+        if (img.parentNode) img.parentNode.replaceChild(makeFallback(v), img);
+      };
+      img.src = v.thumbnail;
+      thumb.appendChild(img);
+    } else {
+      thumb.appendChild(makeFallback(v));
+    }
+    var play = document.createElement("span");
+    play.className = "play";
+    thumb.appendChild(play);
+
+    var body = document.createElement("div");
+    body.className = "body";
+    var cat = document.createElement("span");
+    cat.className = "cat"; cat.textContent = v.category;
+    var title = document.createElement("h2");
+    title.className = "title"; title.textContent = v.title;
+    var btn = document.createElement("a");
+    btn.className = "watch"; btn.textContent = "Watch Video";
+    btn.href = v.url; btn.target = "_blank"; btn.rel = "noopener noreferrer";
+    btn.setAttribute("aria-label", "Watch Video: " + v.title);
+
+    body.appendChild(cat); body.appendChild(title); body.appendChild(btn);
+    li.appendChild(thumb); li.appendChild(body);
+
+    li.addEventListener("click", function (e) {
+      if (e.target.closest("a")) return;
+      openVideo(v.url);
+    });
+    return li;
+  }
+
+
+    function formVideo() {
+    return clean({ title: A.title.value, url: A.url.value, category: A.cat.value, thumbnail: A.thumb.value, keywords: A.kw.value });
+  }
+
+  function updatePreview() {
+    var v = formVideo();
+    if (!v.title) v.title = "Your video title";
+    if (!v.url) v.url = "#";
+    A.preview.textContent = "";
+    A.preview.appendChild(makeCard(v, true));
+  }
+
+  var previewTimer = 0;
+  function schedulePreview() { clearTimeout(previewTimer); previewTimer = setTimeout(updatePreview, 250); }
+
+  function clearForm() {
+    A.title.value = A.url.value = A.cat.value = A.thumb.value = A.kw.value = "";
+    editing = -1;
+    A.formTitle.textContent = "Add a video";
+    A.save.textContent = "Add video";
+    A.cancel.hidden = true;
+    updatePreview();
+  }
+
+  function fail(text, field) { showMsg(text, false); if (field) field.focus(); }
+
+  function saveVideo() {
+    var v = formVideo();
+    if (!v.title) return fail("Please enter a title.", A.title);
+    if (!/^https?:\/\/\S+\.\S+/i.test(v.url)) return fail("The ByteDisk link must start with http:// or https:// and be a full link.", A.url);
+    if (!A.cat.value.trim()) return fail("Please enter a category, for example Tutorials.", A.cat);
+    if (v.category.toLowerCase() === ALL.toLowerCase()) return fail("\u201cAll\u201d is used by the filter button. Please choose a different category name.", A.cat);
+    // Reuse the spelling of an existing category so \u201ctutorials\u201d and \u201cTutorials\u201d don't make two buttons.
+    categories().some(function (c) { if (c.toLowerCase() === v.category.toLowerCase()) { v.category = c; return true; } return false; });
+    if (v.thumbnail && !isHttp(v.thumbnail)) return fail("The thumbnail link must start with http:// or https://, or be left empty.", A.thumb);
+    for (var i = 0; i < data.length; i++) {
+      if (i !== editing && data[i].url.toLowerCase() === v.url.toLowerCase()) {
+        return fail("That link is already used by \u201c" + data[i].title + "\u201d. Every video needs its own link.", A.url);
+      }
+    }
+    var wasEdit = editing >= 0;
+    if (wasEdit) data[editing] = v; else data.push(v);
+    persistDraft();
+    clearForm();
+    refresh();
+    updatePill();
+    showMsg((wasEdit ? "Saved changes to \u201c" : "Added \u201c") + v.title + "\u201d. Check the preview, then publish.", true);
+  }
+
+  function startEdit(i) {
+    var v = data[i];
+    editing = i;
+    A.title.value = v.title; A.url.value = v.url; A.cat.value = v.category;
+    A.thumb.value = v.thumbnail; A.kw.value = v.keywords;
+    A.formTitle.textContent = "Edit video";
+    A.save.textContent = "Save changes";
+    A.cancel.hidden = false;
+    updatePreview();
+    A.formTitle.scrollIntoView({ behavior: "smooth", block: "start" });
+    A.title.focus();
+  }
+
+  function deleteVideo(i) {
+    var v = data[i];
+    if (!window.confirm("Delete \u201c" + v.title + "\u201d from the catalogue?")) return;
+    data.splice(i, 1);
+    if (editing === i) clearForm(); else if (editing > i) editing--;
+    persistDraft();
+    refresh();
+    updatePill();
+    showMsg("Deleted \u201c" + v.title + "\u201d. Publish to make this change live.", true);
+  }
+
+  function renderAdminList() {
+    A.n.textContent = data.length;
+    A.list.textContent = "";
+    A.catlist.textContent = "";
+    categories().forEach(function (c) { var o = document.createElement("option"); o.value = c; A.catlist.appendChild(o); });
+    if (!data.length) {
+      var li = document.createElement("li");
+      li.textContent = "No videos yet. Use the form above to add your first one.";
+      A.list.appendChild(li);
+    }
+    data.forEach(function (v, i) {
+      var li = document.createElement("li");
+      var t = document.createElement("div"); t.className = "vt";
+      t.textContent = v.title;
+      var sm = document.createElement("small"); sm.textContent = v.category;
+      t.appendChild(sm);
+      var e = document.createElement("button"); e.type = "button"; e.className = "btn small"; e.textContent = "Edit";
+      e.setAttribute("aria-label", "Edit " + v.title);
+      e.addEventListener("click", function () { startEdit(i); });
+      var d = document.createElement("button"); d.type = "button"; d.className = "btn small danger"; d.textContent = "Delete";
+      d.setAttribute("aria-label", "Delete " + v.title);
+      d.addEventListener("click", function () { deleteVideo(i); });
+      li.appendChild(t); li.appendChild(e); li.appendChild(d);
+      A.list.appendChild(li);
+    });
+  }
+
+
+
+  function setData(list, base) {
+    data = list.map(clean); if (base) original = JSON.stringify(data);
+    clearForm(); refresh(); persistDraft();
+  }
+  function diffSummary() {
+    var old = {}, add = 0, chg = 0, del = 0, seen = {};
+    try { JSON.parse(original).forEach(function (v) { old[v.url] = v; }); } catch (e) {}
+    data.forEach(function (v) {
+      seen[v.url] = 1;
+      if (!old[v.url]) add++; else if (JSON.stringify(old[v.url]) !== JSON.stringify(v)) chg++;
+    });
+    Object.keys(old).forEach(function (u) { if (!seen[u]) del++; });
+    return add + " added, " + chg + " edited, " + del + " deleted.";
+  }
+
+  /* ---------- sign in / load ---------- */
+  function guessRepo() {
+    var o = "", n = "", m = /^([^.]+)\.github\.io$/i.exec(location.hostname);
+    if (m) { o = m[1]; var seg = location.pathname.split("/")[1]; n = seg && seg.indexOf(".") < 0 ? seg : o + ".github.io"; }
+    try { var p = JSON.parse(localStorage.getItem(PREF_KEY) || "null"); if (p && p.owner && p.name) { o = p.owner; n = p.name; } } catch (e) {}
+    return { owner: o, name: n };
+  }
+  function showLogin() {
+    A = {}; signedIn = false; token = "";
+    var g = guessRepo();
+    root.innerHTML =
+      '<section class="admin" aria-label="Sign in">' +
+      '<div class="admin-head"><h2>Sign in to publish</h2></div>' +
+      '<div class="warnbox" role="note"><strong>How this is protected</strong>' +
+      '<p>This page has no password of its own, and none is hidden in it. <b>GitHub is the lock.</b> You paste a GitHub token that only you can create, and publishing works only if GitHub accepts it. Without a valid token, nobody can change your website from this page.</p>' +
+      '<p>The token is kept in memory only. Closing or reloading this page forgets it.</p></div>' +
+      '<div class="msg" id="l_msg" role="status" aria-live="polite" hidden></div>' +
+      '<label>GitHub username<input id="g_owner" type="text" autocomplete="off" autocapitalize="off" value="' + g.owner.replace(/[^\w.-]/g, "") + '"></label>' +
+      '<label>Repository name<input id="g_repo" type="text" autocomplete="off" autocapitalize="off" value="' + g.name.replace(/[^\w.-]/g, "") + '"></label>' +
+      '<label>GitHub token<input id="g_token" type="password" autocomplete="off" autocapitalize="off" placeholder="github_pat_..."></label>' +
+      '<div class="row"><button type="button" class="btn primary" id="g_go">Sign in and load my videos</button>' +
+      '<button type="button" class="btn" id="g_export">Export-only mode (no token)</button></div>' +
+      '<details class="howto"><summary>How to create the token (Android, once every 30 days)</summary>' +
+      '<ol><li>In Chrome open <b>github.com/settings/personal-access-tokens/new</b> and sign in. Turn on two-factor authentication for your GitHub account if you have not.</li>' +
+      '<li>Token name: <b>video-library</b>. Expiration: <b>30 days</b>.</li>' +
+      '<li>Repository access: <b>Only select repositories</b>, then choose your website repository.</li>' +
+      '<li>Open <b>Repository permissions</b>, find <b>Contents</b> and set it to <b>Read and write</b>. Leave everything else as it is.</li>' +
+      '<li>Tap <b>Generate token</b> and copy it. GitHub shows it only once. Paste it above.</li>' +
+      '<li>When you are done, you can delete the token from GitHub\u2019s token list at any time.</li></ol>' +
+      '<p>Honest limit: GitHub cannot restrict a token to a single file, so this token could change any file in that repository. Keep the repository for this website only, use a short expiry, and never share the token.</p></details>' +
+      '</section>';
+    $("g_go").addEventListener("click", signIn);
+    $("g_export").addEventListener("click", startExport);
+  }
+  async function signIn() {
+    var o = $("g_owner").value.trim(), n = $("g_repo").value.trim(), t = $("g_token").value.trim();
+    if (!/^[\w.-]+$/.test(o) || !/^[\w.-]+$/.test(n)) return showMsg("Enter your GitHub username and the repository name.", false);
+    if (!t) return showMsg("Paste your GitHub token first.", false);
+    token = t; repo = { owner: o, name: n }; $("g_token").value = "";
+    var btn = $("g_go"); btn.disabled = true; showMsg("Checking with GitHub\u2026", true);
+    try {
+      var r = await gh(repoPath());
+      if (!r.ok) { token = ""; return showMsg(ghError(r), false); }
+      if (r.json && r.json.permissions && r.json.permissions.push === false) { token = ""; return showMsg("Your GitHub account is not allowed to change this repository.", false); }
+      try { localStorage.setItem(PREF_KEY, JSON.stringify(repo)); } catch (e) {}
+      var f = await gh(repoPath() + "/contents/" + FILE);
+      var list = [], note = "";
+      if (f.ok) {
+        loadedSha = f.json.sha; list = parseVideos(b64ToText(f.json.content || ""));
+        if (!list) { token = ""; return showMsg("videos.js exists but could not be read, so nothing was loaded. Fix or replace that file on GitHub first.", false); }
+        note = "Signed in. Loaded " + list.length + " video" + (list.length === 1 ? "" : "s") + " from your website.";
+      } else if (f.status === 404) {
+        loadedSha = null; note = "Signed in. There is no videos.js yet; it will be created when you publish.";
+      } else { token = ""; return showMsg(ghError(f), false); }
+      signedIn = true; srcId = o + "/" + n;
+      showEditor(list, note);
+    } catch (e) { token = ""; showMsg(NET, false); }
+    finally { if ($("g_go")) btn.disabled = false; }
+  }
+  async function startExport() {
+    signedIn = false; token = ""; srcId = "export"; loadedSha = null;
+    var list = [], note = "Export-only mode: nothing is sent anywhere. Your website data could not be loaded automatically, so use \u201cImport\u201d below if you have videos already.";
+    try {
+      var res = await fetch(FILE + "?cb=" + Date.now(), { cache: "no-store" });
+      if (res.ok) { var p = parseVideos(await res.text()); if (p) { list = p; note = "Export-only mode: nothing is sent anywhere. Loaded " + p.length + " video" + (p.length === 1 ? "" : "s") + " from your website."; } }
+    } catch (e) {}
+    showEditor(list, note);
+  }
+
+  /* ---------- editor ---------- */
+  function showEditor(list, note) {
+    root.innerHTML =
+      '<section class="admin" aria-label="Manage videos">' +
+      '<div class="admin-head"><h2>Manage videos</h2><span class="pill" id="a_pill"></span></div>' +
+      '<div class="msg" id="a_msg" role="status" aria-live="polite" hidden></div>' +
+      '<div class="admin-cols"><div><h3 id="a_formTitle">Add a video</h3>' +
+      '<label>Title<input id="a_title" type="text" autocomplete="off"></label>' +
+      '<label>ByteDisk link<input id="a_url" type="url" inputmode="url" autocomplete="off" placeholder="https://"></label>' +
+      '<label>Category<input id="a_cat" type="text" list="a_catlist" autocomplete="off"></label><datalist id="a_catlist"></datalist>' +
+      '<label>Thumbnail image link (optional)<input id="a_thumb" type="url" inputmode="url" autocomplete="off" placeholder="https://"></label>' +
+      '<label>Keywords (optional, separated by spaces)<input id="a_kw" type="text" autocomplete="off"></label>' +
+      '<div class="row"><button type="button" class="btn primary" id="a_save">Add video</button><button type="button" class="btn" id="a_cancel" hidden>Cancel edit</button></div>' +
+      '</div><div><h3>Card preview</h3><ul class="grid one" id="a_preview"></ul></div></div>' +
+      '<h3>Your videos (<span id="a_n">0</span>)</h3><ul class="vlist" id="a_list"></ul>' +
+      '<details class="howto"><summary>Preview my whole website (<span id="a_fulln">0</span> videos)</summary><ul class="grid" id="a_full"></ul></details>' +
+      '<div class="exportbox"><div class="row">' +
+      (signedIn ? '<button type="button" class="btn primary" id="a_publish">Publish to my website</button>' : '') +
+      '<button type="button" class="btn' + (signedIn ? '' : ' primary') + '" id="a_copy">Copy videos.js</button>' +
+      '<button type="button" class="btn" id="a_dl">Download videos.js</button>' +
+      '<button type="button" class="btn danger" id="a_discard" hidden>Discard changes</button>' +
+      '<button type="button" class="btn" id="a_out">' + (signedIn ? 'Sign out' : 'Back') + '</button></div>' +
+      '<p>' + (signedIn
+        ? 'Publish saves videos.js to your GitHub repository using your token. The live site updates 1 to 2 minutes later.'
+        : 'Nothing here is live until you put videos.js into your GitHub repository. GitHub\u2019s own login protects that step.') + '</p>' +
+      '<details class="howto"><summary>Import videos</summary>' +
+      '<p>Paste the contents of videos.js, or the video list from an old index.html (everything from <b>const VIDEOS = [</b> to the closing <b>];</b>).</p>' +
+      '<label>Pasted text<textarea id="a_paste" rows="5"></textarea></label>' +
+      '<div class="row"><button type="button" class="btn small" id="a_import">Import pasted text</button>' +
+      (signedIn ? '<button type="button" class="btn small" id="a_old">Import from old index.html on GitHub</button>' : '') + '</div></details>' +
+      '<details class="howto"><summary>' + (signedIn ? 'If publishing does not work: ' : '') + 'Upload by hand on Android</summary>' +
+      '<ol><li>Tap <b>Copy videos.js</b> above. (Or <b>Download videos.js</b>, then check the file is named exactly <b>videos.js</b> and not \u201cvideos (1).js\u201d.)</li>' +
+      '<li>In Chrome open github.com, sign in, open your repository and tap <b>videos.js</b>.</li>' +
+      '<li>Tap the <b>pencil icon</b>, tap in the code, touch and hold, choose <b>Select all</b>, then <b>Paste</b>.</li>' +
+      '<li>Tap <b>Commit changes</b> twice. Wait 1 to 2 minutes, then refresh your website.</li></ol></details>' +
+      '</div></section>';
+    ["pill", "msg", "formTitle", "title", "url", "cat", "thumb", "kw", "save", "cancel", "preview", "n", "list", "catlist", "discard", "full"].forEach(function (k) { A[k] = $("a_" + k); });
+    A.publish = $("a_publish");
+    [A.title, A.url, A.cat, A.thumb, A.kw].forEach(function (el) { el.addEventListener("input", schedulePreview); });
+    A.save.addEventListener("click", saveVideo);
+    A.cancel.addEventListener("click", function () { clearForm(); showMsg("Edit cancelled. Nothing was changed.", true); });
+    $("a_copy").addEventListener("click", copyCode);
+    $("a_dl").addEventListener("click", downloadCode);
+    A.discard.addEventListener("click", discardChanges);
+    $("a_out").addEventListener("click", function () {
+      if (isDirty() && !window.confirm("You have unpublished changes. Leave anyway? (They stay saved in this browser.)")) return;
+      showLogin();
+    });
+    $("a_import").addEventListener("click", function () {
+      var p = parseVideos($("a_paste").value);
+      if (!p || !p.length) return showMsg("No videos were found in the pasted text.", false);
+      if (!window.confirm("Replace your current list with " + p.length + " imported video(s)?")) return;
+      setData(p, false); showMsg("Imported " + p.length + " video(s). Check them, then publish.", true);
+    });
+    if (A.publish) { A.publish.addEventListener("click", publish); $("a_old").addEventListener("click", importOld); }
+    setData(list, true);
+    var restored = false;
+    try {
+      var d = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null");
+      if (d && d.src === srcId && d.base === hashText(original) && Array.isArray(d.data)) { data = d.data.map(clean); restored = isDirty(); refresh(); }
+    } catch (e) {}
+    showMsg((restored ? "Your unpublished changes from this browser were restored. " : "") + note, true);
+  }
+
+  async function importOld() {
+    try {
+      var r = await gh(repoPath() + "/contents/index.html");
+      if (!r.ok) return showMsg(ghError(r), false);
+      var p = parseVideos(b64ToText(r.json.content || ""));
+      if (!p || !p.length) return showMsg("No videos were found in index.html on GitHub. (If you already upgraded it, they are in videos.js.)", false);
+      if (!window.confirm("Replace your current list with the " + p.length + " video(s) found in index.html?")) return;
+      setData(p, false); showMsg("Imported " + p.length + " video(s) from your old index.html. Check them, then tap Publish.", true);
+    } catch (e) { showMsg(NET, false); }
+  }
+
+  async function publish() {
+    if (!signedIn) return;
+    if (!data.length && !window.confirm("The list is empty. Publishing will remove every video from your website. Continue?")) return;
+    if (!window.confirm("Publish " + data.length + " video(s) to your live website?\n" + diffSummary())) return;
+    A.publish.disabled = true; showMsg("Publishing\u2026", true);
+    try {
+      var path = repoPath() + "/contents/" + FILE;
+      var cur = await gh(path), sha = null;
+      if (cur.ok) sha = cur.json.sha; else if (cur.status !== 404) return showMsg(ghError(cur), false);
+      if (sha !== loadedSha && !window.confirm("videos.js on GitHub changed since you loaded it (maybe from another phone or computer). Publish anyway and overwrite it?")) {
+        return showMsg("Publishing cancelled. Sign out and sign in again to load the latest version.", false);
+      }
+      var body = { message: "Update video catalogue (" + data.length + " videos)", content: textToB64(buildVideosJs(data)) };
+      if (sha) body.sha = sha;
+      var put = await gh(path, "PUT", body);
+      if (!put.ok) return showMsg(ghError(put), false);
+      loadedSha = put.json.content.sha; original = JSON.stringify(data); persistDraft(); refresh();
+      showMsg("Published " + data.length + " video(s). Your website updates in 1 to 2 minutes. Then open it without any extra address ending and refresh to check.", true);
+    } catch (e) { showMsg(NET, false); }
+    finally { if (A.publish) A.publish.disabled = false; }
+  }
+
+  function discardChanges() {
+    if (!window.confirm("Throw away your unpublished changes and go back to the last loaded version?")) return;
+    data = JSON.parse(original).map(clean); clearForm(); refresh(); persistDraft();
+    showMsg("Changes discarded.", true);
+  }
+  function copyCode() {
+    var text = buildVideosJs(data);
+    var done = function () { showMsg("Copied videos.js (" + data.length + " videos). It is NOT live yet. On GitHub open videos.js, tap the pencil icon, Select all, Paste, then Commit changes.", true); };
+    var fallback = function () {
+      var ta = document.createElement("textarea");
+      ta.value = text; ta.setAttribute("readonly", "");
+      ta.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0";
+      document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, text.length);
+      var ok = false; try { ok = document.execCommand("copy"); } catch (e) {}
+      ta.remove();
+      if (ok) done(); else showMsg("Copy was blocked by the browser. Use Download videos.js instead.", false);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback); else fallback();
+  }
+  function downloadCode() {
+    var link = document.createElement("a");
+    link.href = URL.createObjectURL(new Blob([buildVideosJs(data)], { type: "text/javascript" }));
+    link.download = "videos.js";
+    document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(function () { URL.revokeObjectURL(link.href); }, 4000);
+    showMsg("Download started. It is NOT live yet. Check your Downloads folder: the file must be named exactly videos.js (not \u201cvideos (1).js\u201d), then upload it to GitHub.", true);
+  }
+
+  showLogin();
+})();
+</script>
+</body>
+</html>
