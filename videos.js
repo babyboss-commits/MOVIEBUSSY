@@ -1,9 +1,10 @@
 /* Video catalogue. Managed with admin.html. If you edit by hand, keep it valid JSON. */
 window.VIDEOS = [
   {
-    title: "Sample Video 1",
+    title: "The Fault In Our Stars",
     category: "Uncategorized",
-    url: "https://youtu.be/sAUVblbywUs?si=TJ6p3gQIzEercEXa",
-    keywords: ["sample", "video", "youtube"]
+    url: "https://bytedisk.net/v/3f4421",
+    thumbnail: "https://i.postimg.cc/wBgQmd11/Yoooo.jpg",
+    keywords: ["The", "The Fault", "The Fault In", "The Fault In Our", "The Fault In Our Stars"]
   }
 ];
