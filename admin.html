@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src https: data:; connect-src https://api.github.com 'self'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src https: data:; frame-src https:; connect-src https://api.github.com 'self'; base-uri 'none'; form-action 'none'">
 <title>Video Library admin</title>
 <style>
 :root{
@@ -171,12 +171,19 @@ details.howto p{margin:0 0 10px;font-size:.93rem;color:var(--muted)}
 .exportbox p{color:var(--muted);font-size:.88rem;margin:12px 0 0}
 .admin textarea{width:100%;margin-top:5px;padding:12px;font:inherit;font-size:16px;color:var(--text);background:var(--bg);border:1.5px solid var(--line);border-radius:12px}
 body>main{padding-top:8px}
+.admin select{width:100%;margin-top:5px;padding:13px 14px;font:inherit;font-size:16px;color:var(--text);background:var(--bg);border:1.5px solid var(--line);border-radius:12px}
+.admin select:focus{outline:none;border-color:var(--accent)}
+.admin .hint{display:block;margin-top:5px;font-size:.82rem;color:var(--muted)}
+.playerprev{position:relative;aspect-ratio:16/9;margin:0 0 14px;background:#000;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.playerprev iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.playerprev p{margin:0;padding:16px;color:var(--muted);font-size:.9rem}
+.tag{font-size:.72rem;color:var(--accent);border:1px solid rgba(244,185,66,.45);border-radius:999px;padding:1px 8px;margin-left:6px}
 </style>
 </head>
 <body>
 <header>
   <h1>Video admin</h1>
-  <p class="tagline">Add, edit and delete videos, preview them, then publish.</p>
+  <p class="tagline">Add, edit and delete videos, choose how each one plays, preview them, then publish.</p>
 </header>
 <main><div id="adminRoot"></div><noscript><p>This page needs JavaScript.</p></noscript></main>
 <script>
@@ -191,18 +198,70 @@ body>main{padding-top:8px}
   var root = document.getElementById("adminRoot");
 
   function $(id) { return document.getElementById(id); }
+  var KNOWN = ["id", "title", "category", "url", "playbackType", "embedUrl", "externalUrl", "thumbnail", "keywords", "description"];
+  /* Known fields are normalised; any other field already in a record is kept untouched so nothing is lost on publish. */
   function clean(v) {
     v = v || {};
-    return {
-      title: String(v.title || "").trim(),
-      category: String(v.category || "").trim() || "Other",
-      url: String(v.url || "").trim(),
-      thumbnail: String(v.thumbnail || "").trim(),
-      keywords: Array.isArray(v.keywords) ? v.keywords.join(" ") : String(v.keywords || "").trim()
-    };
+    var o = {};
+    o.id = String(v.id || "").trim();
+    o.title = String(v.title || "").trim();
+    o.category = String(v.category || "").trim() || "Other";
+    o.url = String(v.url || "").trim();
+    o.playbackType = playType(v);
+    o.embedUrl = String(v.embedUrl || "").trim();
+    o.externalUrl = String(v.externalUrl || "").trim();
+    o.thumbnail = String(v.thumbnail || "").trim();
+    o.keywords = Array.isArray(v.keywords) ? v.keywords.join(" ") : String(v.keywords || "").trim();
+    o.description = String(v.description || "").trim();
+    Object.keys(v).forEach(function (k) { if (KNOWN.indexOf(k) < 0) o[k] = v[k]; });
+    return o;
   }
+  /* ---- Shared schema helpers (identical in index.html, watch.html and admin.html) ---- */
+  /* Only these player hosts may be embedded. To add a provider, add its hostname here in all three files
+     (and nowhere else). Subdomains of a listed host are accepted. */
+  var EMBED_HOSTS = ["fembed.co"];
   function isHttp(u) { return /^https?:\/\/\S+/i.test(u); }
-  function listable(v) { return !!(v.title && isHttp(v.url)); }
+  function parseEmbed(u) {
+    u = String(u || "").trim();
+    if (!u) return { ok: false, error: "No embed link was given." };
+    var p; try { p = new URL(u); } catch (e) { return { ok: false, error: "That is not a valid link." }; }
+    if (p.protocol !== "https:") return { ok: false, error: "The embed link must start with https://" };
+    if (p.username || p.password) return { ok: false, error: "The embed link must not contain a username or password." };
+    var h = p.hostname.toLowerCase();
+    var allowed = EMBED_HOSTS.some(function (a) { return h === a || h.slice(-(a.length + 1)) === "." + a; });
+    if (!allowed) return { ok: false, error: "\u201c" + h + "\u201d is not an allowed player host. Allowed: " + EMBED_HOSTS.join(", ") + "." };
+    if (p.pathname.length < 2) return { ok: false, error: "The embed link is missing the video part after the host name." };
+    return { ok: true, href: p.href };
+  }
+  function slugify(t) {
+    var s = String(t || "");
+    try { s = s.normalize("NFKD").replace(/[\u0300-\u036f]/g, ""); } catch (e) {}
+    s = s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60).replace(/-+$/, "");
+    return s || "video";
+  }
+  function validId(id) { return /^[a-z0-9][a-z0-9_-]{0,79}$/i.test(id); }
+  /* Keeps every valid, unique id as written; generates one (from the title) only where it is missing or clashes. */
+  function assignIds(list) {
+    var used = {};
+    list.forEach(function (v) {
+      var id = String(v.id || "").trim();
+      if (validId(id) && !used[id.toLowerCase()]) { v.id = id; used[id.toLowerCase()] = 1; } else v.id = "";
+    });
+    list.forEach(function (v) {
+      if (v.id) return;
+      var base = slugify(v.title), id = base, n = 2;
+      while (used[id.toLowerCase()]) id = base + "-" + (n++);
+      v.id = id; used[id.toLowerCase()] = 1;
+    });
+    return list;
+  }
+  function playType(v) {
+    var t = String(v.playbackType || "").toLowerCase();
+    return t === "embed" || t === "external" ? t : "legacy";
+  }
+  function watchHref(id) { return "watch.html?id=" + encodeURIComponent(id); }
+  function listable(v) { return !!(v.title && (isHttp(v.url) || isHttp(v.embedUrl) || isHttp(v.externalUrl))); }
+  function typeLabel(v) { var t = playType(v); return t === "embed" ? "Embedded" : t === "external" ? "External" : "Legacy"; }
   function hashText(str) {
     var h = 2166136261;
     for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
@@ -230,19 +289,19 @@ body>main{padding-top:8px}
     var e = seg.indexOf("/* <<< VIDEOS-END */"); if (e >= 0) seg = seg.slice(0, e);
     var a = seg.indexOf("["), b = seg.lastIndexOf("]");
     if (a < 0 || b < a) return null;
-    var keep = function (v) { return v.title || v.url; };
-    try { var arr = JSON.parse(seg.slice(a, b + 1)); if (Array.isArray(arr)) return arr.map(clean).filter(keep); } catch (err) {}
-    var re = /["']?\b(title|category|url|thumbnail|keywords)["']?\s*:\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')/g, out = [], cur = null, mt;
+    var keep = function (v) { return v.title || v.url || v.embedUrl; };
+    try { var arr = JSON.parse(seg.slice(a, b + 1)); if (Array.isArray(arr)) return assignIds(arr.map(clean).filter(keep)); } catch (err) {}
+    var re = /["']?\b(id|title|category|url|playbackType|embedUrl|externalUrl|thumbnail|keywords|description)["']?\s*:\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')/g, out = [], cur = null, mt;
     while ((mt = re.exec(seg))) {
-      if (mt[1] === "title" || !cur) { if (cur) out.push(cur); cur = {}; }
+      if (!cur || (mt[1] in cur)) { if (cur) out.push(cur); cur = {}; }
       cur[mt[1]] = strVal(mt[2]);
     }
     if (cur) out.push(cur);
-    return out.length ? out.map(clean).filter(keep) : null;
+    return out.length ? assignIds(out.map(clean).filter(keep)) : null;
   }
   function buildVideosJs(list) {
-    var json = JSON.stringify(list.map(clean), null, 2).replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
-    return "/* Video catalogue. Managed with admin.html. If you edit by hand, keep it valid JSON. */\nwindow.VIDEOS = " + json + ";\n";
+    var json = JSON.stringify(assignIds(list.map(clean)), null, 2).replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
+    return "/* Video catalogue. Managed with admin.html. If you edit by hand, keep it valid JSON.\n   Fields: id (stable, never change it), title, category, url (kept for compatibility),\n   playbackType (\"embed\" | \"external\" | \"legacy\"), embedUrl, externalUrl, thumbnail, keywords, description.\n   \"legacy\" = old record whose playback type has not been configured yet. */\nwindow.VIDEOS = " + json + ";\n";
   }
   function b64ToText(b) {
     var bin = atob(b.replace(/\s/g, "")), bytes = new Uint8Array(bin.length);
@@ -307,8 +366,6 @@ body>main{padding-top:8px}
     return "linear-gradient(135deg," + p[0] + "," + p[1] + ")";
   }
 
-  function openVideo(url) { window.open(url, "_blank", "noopener,noreferrer"); }
-
   function makeFallback(v) {
     var d = document.createElement("div");
     d.className = "fallback";
@@ -324,7 +381,7 @@ body>main{padding-top:8px}
 
     var thumb = document.createElement("a");
     thumb.className = "thumb";
-    thumb.href = v.url; thumb.target = "_blank"; thumb.rel = "noopener noreferrer";
+    thumb.href = watchHref(v.id || "preview");
     thumb.tabIndex = -1;
     thumb.setAttribute("aria-hidden", "true");
     if (v.thumbnail) {
@@ -351,28 +408,58 @@ body>main{padding-top:8px}
     title.className = "title"; title.textContent = v.title;
     var btn = document.createElement("a");
     btn.className = "watch"; btn.textContent = "Watch Video";
-    btn.href = v.url; btn.target = "_blank"; btn.rel = "noopener noreferrer";
+    btn.href = watchHref(v.id || "preview");
     btn.setAttribute("aria-label", "Watch Video: " + v.title);
 
     body.appendChild(cat); body.appendChild(title); body.appendChild(btn);
     li.appendChild(thumb); li.appendChild(body);
 
-    li.addEventListener("click", function (e) {
-      if (e.target.closest("a")) return;
-      openVideo(v.url);
-    });
     return li;
   }
 
 
-    function formVideo() {
-    return clean({ title: A.title.value, url: A.url.value, category: A.cat.value, thumbnail: A.thumb.value, keywords: A.kw.value });
+  function formVideo() {
+    var pt = A.pt.value, base = editing >= 0 ? data[editing] : {};
+    var o = { id: base.id || "", title: A.title.value, category: A.cat.value, playbackType: pt,
+      thumbnail: A.thumb.value, keywords: A.kw.value, description: A.desc.value };
+    Object.keys(base).forEach(function (k) { if (!(k in o) && KNOWN.indexOf(k) < 0) o[k] = base[k]; });
+    var embed = String(base.embedUrl || ""), ext = String(base.externalUrl || ""), url = String(base.url || "");
+    if (pt === "embed") { embed = A.embed.value; url = embed; }
+    else if (pt === "external") { ext = A.ext.value; url = ext; }
+    else { url = A.ext.value; }
+    o.embedUrl = embed; o.externalUrl = ext; o.url = url;
+    return clean(o);
+  }
+
+  function syncFields() {
+    var pt = A.pt.value;
+    A.embedWrap.hidden = pt !== "embed";
+    A.extWrap.hidden = pt === "embed";
+    A.testp.hidden = pt !== "embed";
+    $("a_extLabel").textContent = pt === "external" ? "External watch link" : "Legacy link (playback not configured)";
+    $("a_extHint").textContent = pt === "external"
+      ? "Visitors get a button that opens this link in a new tab. Must start with https://"
+      : "Kept as-is. Visitors see \u201cPlayback not set up yet\u201d until you choose Embedded Player or External Link.";
+    if (pt !== "embed") clearPlayerPreview();
+  }
+
+  function clearPlayerPreview() { A.player.textContent = ""; A.player.hidden = true; }
+  function testPlayer() {
+    var r = parseEmbed(A.embed.value);
+    A.player.textContent = ""; A.player.hidden = false;
+    if (!r.ok) { var p = document.createElement("p"); p.textContent = r.error; A.player.appendChild(p); return; }
+    var f = document.createElement("iframe");
+    f.title = "Player preview";
+    f.setAttribute("allow", "autoplay; fullscreen; picture-in-picture; encrypted-media");
+    f.setAttribute("allowfullscreen", "");
+    f.setAttribute("referrerpolicy", "origin");
+    f.src = r.href;
+    A.player.appendChild(f);
   }
 
   function updatePreview() {
     var v = formVideo();
     if (!v.title) v.title = "Your video title";
-    if (!v.url) v.url = "#";
     A.preview.textContent = "";
     A.preview.appendChild(makeCard(v, true));
   }
@@ -381,32 +468,44 @@ body>main{padding-top:8px}
   function schedulePreview() { clearTimeout(previewTimer); previewTimer = setTimeout(updatePreview, 250); }
 
   function clearForm() {
-    A.title.value = A.url.value = A.cat.value = A.thumb.value = A.kw.value = "";
+    A.title.value = A.embed.value = A.ext.value = A.cat.value = A.thumb.value = A.kw.value = A.desc.value = "";
+    A.pt.value = "embed";
     editing = -1;
     A.formTitle.textContent = "Add a video";
     A.save.textContent = "Add video";
     A.cancel.hidden = true;
+    syncFields(); clearPlayerPreview();
     updatePreview();
   }
 
   function fail(text, field) { showMsg(text, false); if (field) field.focus(); }
 
   function saveVideo() {
-    var v = formVideo();
+    var v = formVideo(), pt = v.playbackType;
     if (!v.title) return fail("Please enter a title.", A.title);
-    if (!/^https?:\/\/\S+\.\S+/i.test(v.url)) return fail("The ByteDisk link must start with http:// or https:// and be a full link.", A.url);
     if (!A.cat.value.trim()) return fail("Please enter a category, for example Tutorials.", A.cat);
     if (v.category.toLowerCase() === ALL.toLowerCase()) return fail("\u201cAll\u201d is used by the filter button. Please choose a different category name.", A.cat);
-    // Reuse the spelling of an existing category so \u201ctutorials\u201d and \u201cTutorials\u201d don't make two buttons.
     categories().some(function (c) { if (c.toLowerCase() === v.category.toLowerCase()) { v.category = c; return true; } return false; });
+    if (pt === "embed") {
+      var r = parseEmbed(v.embedUrl);
+      if (!r.ok) return fail(r.error, A.embed);
+      v.embedUrl = r.href; v.url = r.href;
+    } else if (pt === "external") {
+      if (!/^https:\/\/\S+\.\S+/i.test(v.externalUrl)) return fail("The external link must start with https:// and be a full link.", A.ext);
+    } else if (!/^https?:\/\/\S+\.\S+/i.test(v.url)) {
+      return fail("The legacy link must start with http:// or https:// and be a full link.", A.ext);
+    }
     if (v.thumbnail && !isHttp(v.thumbnail)) return fail("The thumbnail link must start with http:// or https://, or be left empty.", A.thumb);
+    if (v.description.length > 2000) return fail("The description is too long. Keep it under 2000 characters.", A.desc);
+    var mine = [v.url, v.embedUrl, v.externalUrl].filter(Boolean).map(function (u) { return u.toLowerCase(); });
     for (var i = 0; i < data.length; i++) {
-      if (i !== editing && data[i].url.toLowerCase() === v.url.toLowerCase()) {
-        return fail("That link is already used by \u201c" + data[i].title + "\u201d. Every video needs its own link.", A.url);
-      }
+      if (i === editing) continue;
+      var theirs = [data[i].url, data[i].embedUrl, data[i].externalUrl].filter(Boolean).map(function (u) { return u.toLowerCase(); });
+      if (mine.some(function (u) { return theirs.indexOf(u) >= 0; })) return fail("That link is already used by \u201c" + data[i].title + "\u201d. Every video needs its own link.", pt === "embed" ? A.embed : A.ext);
     }
     var wasEdit = editing >= 0;
-    if (wasEdit) data[editing] = v; else data.push(v);
+    if (wasEdit) data[editing] = v; else data.push(v);   // an edited record keeps its id (formVideo copies it)
+    assignIds(data);
     persistDraft();
     clearForm();
     refresh();
@@ -415,13 +514,16 @@ body>main{padding-top:8px}
   }
 
   function startEdit(i) {
-    var v = data[i];
+    var v = data[i], pt = playType(v);
     editing = i;
-    A.title.value = v.title; A.url.value = v.url; A.cat.value = v.category;
-    A.thumb.value = v.thumbnail; A.kw.value = v.keywords;
+    A.title.value = v.title; A.cat.value = v.category; A.pt.value = pt;
+    A.embed.value = v.embedUrl;
+    A.ext.value = pt === "external" ? (v.externalUrl || v.url) : (pt === "legacy" ? v.url : v.externalUrl);
+    A.thumb.value = v.thumbnail; A.kw.value = v.keywords; A.desc.value = v.description;
     A.formTitle.textContent = "Edit video";
     A.save.textContent = "Save changes";
     A.cancel.hidden = false;
+    syncFields(); clearPlayerPreview();
     updatePreview();
     A.formTitle.scrollIntoView({ behavior: "smooth", block: "start" });
     A.title.focus();
@@ -452,7 +554,7 @@ body>main{padding-top:8px}
       var li = document.createElement("li");
       var t = document.createElement("div"); t.className = "vt";
       t.textContent = v.title;
-      var sm = document.createElement("small"); sm.textContent = v.category;
+      var sm = document.createElement("small"); sm.textContent = v.category + " \u2022 " + typeLabel(v) + " \u2022 id: " + v.id;
       t.appendChild(sm);
       var e = document.createElement("button"); e.type = "button"; e.className = "btn small"; e.textContent = "Edit";
       e.setAttribute("aria-label", "Edit " + v.title);
@@ -468,15 +570,15 @@ body>main{padding-top:8px}
 
 
   function setData(list, base) {
-    data = list.map(clean); if (base) original = JSON.stringify(data);
+    data = assignIds(list.map(clean)); if (base) original = JSON.stringify(data);
     clearForm(); refresh(); persistDraft();
   }
   function diffSummary() {
     var old = {}, add = 0, chg = 0, del = 0, seen = {};
-    try { JSON.parse(original).forEach(function (v) { old[v.url] = v; }); } catch (e) {}
+    try { JSON.parse(original).forEach(function (v) { old[v.id] = v; }); } catch (e) {}
     data.forEach(function (v) {
-      seen[v.url] = 1;
-      if (!old[v.url]) add++; else if (JSON.stringify(old[v.url]) !== JSON.stringify(v)) chg++;
+      seen[v.id] = 1;
+      if (!old[v.id]) add++; else if (JSON.stringify(old[v.id]) !== JSON.stringify(v)) chg++;
     });
     Object.keys(old).forEach(function (u) { if (!seen[u]) del++; });
     return add + " added, " + chg + " edited, " + del + " deleted.";
@@ -558,12 +660,16 @@ body>main{padding-top:8px}
       '<div class="admin-head"><h2>Manage videos</h2><span class="pill" id="a_pill"></span></div>' +
       '<div class="msg" id="a_msg" role="status" aria-live="polite" hidden></div>' +
       '<div class="admin-cols"><div><h3 id="a_formTitle">Add a video</h3>' +
-      '<label>Title<input id="a_title" type="text" autocomplete="off"></label>' +
-      '<label>ByteDisk link<input id="a_url" type="url" inputmode="url" autocomplete="off" placeholder="https://"></label>' +
+      '<label>Video title<input id="a_title" type="text" autocomplete="off"></label>' +
       '<label>Category<input id="a_cat" type="text" list="a_catlist" autocomplete="off"></label><datalist id="a_catlist"></datalist>' +
+      '<label>Playback type<select id="a_pt"><option value="embed">Embedded Player</option><option value="external">External Link</option><option value="legacy">Legacy link (not configured)</option></select></label>' +
+      '<div id="a_embedWrap"><label>Embed URL<input id="a_embed" type="url" inputmode="url" autocomplete="off" placeholder="https://fembed.co/embed/..."><span class="hint">Paste only the player link, not the whole iframe code. Allowed hosts: ' + EMBED_HOSTS.join(", ") + '.</span></label></div>' +
+      '<div id="a_extWrap" hidden><label><span id="a_extLabel">External watch link</span><input id="a_ext" type="url" inputmode="url" autocomplete="off" placeholder="https://"><span class="hint" id="a_extHint"></span></label></div>' +
       '<label>Thumbnail image link (optional)<input id="a_thumb" type="url" inputmode="url" autocomplete="off" placeholder="https://"></label>' +
       '<label>Keywords (optional, separated by spaces)<input id="a_kw" type="text" autocomplete="off"></label>' +
-      '<div class="row"><button type="button" class="btn primary" id="a_save">Add video</button><button type="button" class="btn" id="a_cancel" hidden>Cancel edit</button></div>' +
+      '<label>Description (optional)<textarea id="a_desc" rows="3" maxlength="2000"></textarea></label>' +
+      '<div class="playerprev" id="a_player" hidden></div>' +
+      '<div class="row"><button type="button" class="btn primary" id="a_save">Add video</button><button type="button" class="btn" id="a_testp">Test player</button><button type="button" class="btn" id="a_cancel" hidden>Cancel edit</button></div>' +
       '</div><div><h3>Card preview</h3><ul class="grid one" id="a_preview"></ul></div></div>' +
       '<h3>Your videos (<span id="a_n">0</span>)</h3><ul class="vlist" id="a_list"></ul>' +
       '<details class="howto"><summary>Preview my whole website (<span id="a_fulln">0</span> videos)</summary><ul class="grid" id="a_full"></ul></details>' +
@@ -587,9 +693,11 @@ body>main{padding-top:8px}
       '<li>Tap the <b>pencil icon</b>, tap in the code, touch and hold, choose <b>Select all</b>, then <b>Paste</b>.</li>' +
       '<li>Tap <b>Commit changes</b> twice. Wait 1 to 2 minutes, then refresh your website.</li></ol></details>' +
       '</div></section>';
-    ["pill", "msg", "formTitle", "title", "url", "cat", "thumb", "kw", "save", "cancel", "preview", "n", "list", "catlist", "discard", "full"].forEach(function (k) { A[k] = $("a_" + k); });
+    ["pill", "msg", "formTitle", "title", "pt", "embed", "ext", "embedWrap", "extWrap", "desc", "player", "testp", "cat", "thumb", "kw", "save", "cancel", "preview", "n", "list", "catlist", "discard", "full"].forEach(function (k) { A[k] = $("a_" + k); });
     A.publish = $("a_publish");
-    [A.title, A.url, A.cat, A.thumb, A.kw].forEach(function (el) { el.addEventListener("input", schedulePreview); });
+    [A.title, A.embed, A.ext, A.cat, A.thumb, A.kw, A.desc].forEach(function (el) { el.addEventListener("input", schedulePreview); });
+    A.pt.addEventListener("change", function () { syncFields(); schedulePreview(); });
+    A.testp.addEventListener("click", testPlayer);
     A.save.addEventListener("click", saveVideo);
     A.cancel.addEventListener("click", function () { clearForm(); showMsg("Edit cancelled. Nothing was changed.", true); });
     $("a_copy").addEventListener("click", copyCode);
@@ -610,7 +718,7 @@ body>main{padding-top:8px}
     var restored = false;
     try {
       var d = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null");
-      if (d && d.src === srcId && d.base === hashText(original) && Array.isArray(d.data)) { data = d.data.map(clean); restored = isDirty(); refresh(); }
+      if (d && d.src === srcId && d.base === hashText(original) && Array.isArray(d.data)) { data = assignIds(d.data.map(clean)); restored = isDirty(); refresh(); }
     } catch (e) {}
     showMsg((restored ? "Your unpublished changes from this browser were restored. " : "") + note, true);
   }
@@ -650,7 +758,7 @@ body>main{padding-top:8px}
 
   function discardChanges() {
     if (!window.confirm("Throw away your unpublished changes and go back to the last loaded version?")) return;
-    data = JSON.parse(original).map(clean); clearForm(); refresh(); persistDraft();
+    data = assignIds(JSON.parse(original).map(clean)); clearForm(); refresh(); persistDraft();
     showMsg("Changes discarded.", true);
   }
   function copyCode() {
