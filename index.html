@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Movie Bussy</title>
-<meta name="description" content="A searchable catalogue of videos. Each video opens on its own ByteDisk page.">
+<meta name="description" content="A searchable catalogue of videos. Pick a video and watch it right here.">
 <meta name="theme-color" content="#11141d">
 <style>
 :root{
@@ -97,6 +97,8 @@ main{flex:1; max-width:1180px; width:100%; margin:0 auto; padding:8px 20px 40px}
   align-self:flex-start; font-size:.8rem; color:var(--accent);
   border:1px solid rgba(244,185,66,.45); border-radius:999px; padding:2px 10px;
 }
+.cat-row{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+.tag{font-size:.75rem; color:var(--muted); border:1px solid var(--line); border-radius:999px; padding:2px 9px}
 .title{margin:0; font-size:1.05rem; line-height:1.3; font-weight:600; overflow-wrap:anywhere}
 .watch{
   margin-top:auto; display:block; text-align:center; text-decoration:none;
@@ -135,7 +137,7 @@ footer p{margin:4px auto; max-width:60ch}
 
 <header>
   <h1>Movie Bussy</h1>
-  <p class="tagline">Search the collection or pick a category. Each video opens on its own page.</p>
+  <p class="tagline">Search the collection or pick a category, then press Play to watch on this site.</p>
   <div class="search">
     <input id="q" type="search" placeholder="Search by title, category or keyword" aria-label="Search videos" autocomplete="off" enterkeyhint="search">
     <button class="clear" id="clear" type="button" aria-label="Clear search">&times;</button>
@@ -155,8 +157,8 @@ footer p{margin:4px auto; max-width:60ch}
 </main>
 
 <footer>
-  <p>This page is only a catalogue. Videos are not hosted here.</p>
-  <p>Each video opens on ByteDisk, and whether you can watch or download it depends on that page and ByteDisk's own requirements.</p>
+  <p>Videos are streamed from third-party players and are not stored on this site.</p>
+  <p>Whether a video plays depends on the video host's own player and requirements.</p>
 </footer>
 
 <script>
@@ -174,17 +176,64 @@ function startLibrary(VIDEOS) {
   function clean(v) {
     v = v || {};
     return {
+      id: String(v.id || "").trim(),
       title: String(v.title || "").trim(),
       category: String(v.category || "").trim() || "Other",
       url: String(v.url || "").trim(),
+      playbackType: String(v.playbackType || "").trim(),
+      embedUrl: String(v.embedUrl || "").trim(),
+      externalUrl: String(v.externalUrl || "").trim(),
       thumbnail: String(v.thumbnail || "").trim(),
       keywords: Array.isArray(v.keywords) ? v.keywords.join(" ") : String(v.keywords || "").trim()
     };
   }
 
+  /* ---- Shared schema helpers (identical in index.html, watch.html and admin.html) ---- */
+  /* Only these player hosts may be embedded. To add a provider, add its hostname here in all three files
+     (and nowhere else). Subdomains of a listed host are accepted. */
+  var EMBED_HOSTS = ["fembed.co"];
   function isHttp(u) { return /^https?:\/\/\S+/i.test(u); }
+  function parseEmbed(u) {
+    u = String(u || "").trim();
+    if (!u) return { ok: false, error: "No embed link was given." };
+    var p; try { p = new URL(u); } catch (e) { return { ok: false, error: "That is not a valid link." }; }
+    if (p.protocol !== "https:") return { ok: false, error: "The embed link must start with https://" };
+    if (p.username || p.password) return { ok: false, error: "The embed link must not contain a username or password." };
+    var h = p.hostname.toLowerCase();
+    var allowed = EMBED_HOSTS.some(function (a) { return h === a || h.slice(-(a.length + 1)) === "." + a; });
+    if (!allowed) return { ok: false, error: "\u201c" + h + "\u201d is not an allowed player host. Allowed: " + EMBED_HOSTS.join(", ") + "." };
+    if (p.pathname.length < 2) return { ok: false, error: "The embed link is missing the video part after the host name." };
+    return { ok: true, href: p.href };
+  }
+  function slugify(t) {
+    var s = String(t || "");
+    try { s = s.normalize("NFKD").replace(/[\u0300-\u036f]/g, ""); } catch (e) {}
+    s = s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60).replace(/-+$/, "");
+    return s || "video";
+  }
+  function validId(id) { return /^[a-z0-9][a-z0-9_-]{0,79}$/i.test(id); }
+  /* Keeps every valid, unique id as written; generates one (from the title) only where it is missing or clashes. */
+  function assignIds(list) {
+    var used = {};
+    list.forEach(function (v) {
+      var id = String(v.id || "").trim();
+      if (validId(id) && !used[id.toLowerCase()]) { v.id = id; used[id.toLowerCase()] = 1; } else v.id = "";
+    });
+    list.forEach(function (v) {
+      if (v.id) return;
+      var base = slugify(v.title), id = base, n = 2;
+      while (used[id.toLowerCase()]) id = base + "-" + (n++);
+      v.id = id; used[id.toLowerCase()] = 1;
+    });
+    return list;
+  }
+  function playType(v) {
+    var t = String(v.playbackType || "").toLowerCase();
+    return t === "embed" || t === "external" ? t : "legacy";
+  }
+  function watchHref(id) { return "watch.html?id=" + encodeURIComponent(id); }
 
-  var data = VIDEOS.map(clean);
+  var data = assignIds(VIDEOS.map(clean));
 
   var $q = document.getElementById("q");
   var $clear = document.getElementById("clear");
@@ -201,8 +250,6 @@ function startLibrary(VIDEOS) {
     return "linear-gradient(135deg," + p[0] + "," + p[1] + ")";
   }
 
-  function openVideo(url) { window.open(url, "_blank", "noopener,noreferrer"); }
-
   function makeFallback(v) {
     var d = document.createElement("div");
     d.className = "fallback";
@@ -218,7 +265,7 @@ function startLibrary(VIDEOS) {
 
     var thumb = document.createElement("a");
     thumb.className = "thumb";
-    thumb.href = v.url; thumb.target = "_blank"; thumb.rel = "noopener noreferrer";
+    thumb.href = watchHref(v.id);
     thumb.tabIndex = -1;
     thumb.setAttribute("aria-hidden", "true");
     if (v.thumbnail) {
@@ -239,31 +286,39 @@ function startLibrary(VIDEOS) {
 
     var body = document.createElement("div");
     body.className = "body";
+    var catRow = document.createElement("div");
+    catRow.className = "cat-row";
     var cat = document.createElement("span");
     cat.className = "cat"; cat.textContent = v.category;
+    catRow.appendChild(cat);
+    if (v.type === "external" || v.type === "legacy") {
+      var tag = document.createElement("span");
+      tag.className = "tag"; tag.textContent = v.type === "external" ? "External link" : "Link only";
+      catRow.appendChild(tag);
+    }
     var title = document.createElement("h2");
     title.className = "title"; title.textContent = v.title;
     var btn = document.createElement("a");
     btn.className = "watch"; btn.textContent = "Watch Video";
-    btn.href = v.url; btn.target = "_blank"; btn.rel = "noopener noreferrer";
+    btn.href = watchHref(v.id);
     btn.setAttribute("aria-label", "Watch Video: " + v.title);
 
-    body.appendChild(cat); body.appendChild(title); body.appendChild(btn);
+    body.appendChild(catRow); body.appendChild(title); body.appendChild(btn);
     li.appendChild(thumb); li.appendChild(body);
 
     li.addEventListener("click", function (e) {
       if (e.target.closest("a")) return;
-      openVideo(v.url);
+      window.location.href = watchHref(v.id);
     });
     return li;
   }
 
-  // A video is shown publicly only if it has a title and a normal web link.
-  function listable(v) { return !!(v.title && isHttp(v.url)); }
+  // A video is shown publicly only if it has a title and at least one normal web link.
+  function listable(v) { return !!(v.title && v.id && (isHttp(v.url) || isHttp(v.embedUrl) || isHttp(v.externalUrl))); }
 
   function catalogue() {
     return data.filter(listable).map(function (v) {
-      return { title: v.title, category: v.category, url: v.url, thumbnail: isHttp(v.thumbnail) ? v.thumbnail : "",
+      return { id: v.id, type: playType(v), title: v.title, category: v.category, thumbnail: isHttp(v.thumbnail) ? v.thumbnail : "",
         haystack: (v.title + " " + v.category + " " + v.keywords).toLowerCase() };
     });
   }
@@ -345,3 +400,4 @@ function startLibrary(VIDEOS) {
 </script>
 </body>
 </html>
+
