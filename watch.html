@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Watch | Movie Bussy</title>
+<meta name="description" content="Watch videos on Movie Bussy.">
+<meta name="theme-color" content="#11141d">
+<style>
+:root{
+  --bg:#11141d; --surface:#1a1f2c; --surface2:#232a3a; --line:#2e3649;
+  --text:#eef1f7; --muted:#9aa4ba; --accent:#f4b942; --accent-ink:#1a1400; --radius:16px;
+}
+*{box-sizing:border-box}
+[hidden]{display:none !important}
+html{-webkit-text-size-adjust:100%}
+body{margin:0; min-height:100vh; display:flex; flex-direction:column; background:var(--bg); color:var(--text);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif; line-height:1.5; overflow-x:hidden}
+a{color:inherit}
+:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
+
+.bar{position:sticky; top:0; z-index:10; background:rgba(17,20,29,.92); backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--line); padding-top:env(safe-area-inset-top,0px)}
+.bar-in{max-width:1180px; margin:0 auto; padding:10px 20px; display:flex; align-items:center; gap:12px}
+.back{display:inline-flex; align-items:center; gap:6px; min-height:44px; padding:0 14px; border-radius:999px;
+  border:1.5px solid var(--line); background:var(--surface); color:var(--text); font:inherit; font-weight:600; cursor:pointer; text-decoration:none}
+.back:hover{border-color:var(--accent)}
+.logo{margin:0 0 0 auto; font-family:Georgia,"Times New Roman",serif; font-size:1.35rem; font-weight:700; letter-spacing:-.01em}
+.logo a{text-decoration:none}
+.logo span{color:var(--accent)}
+
+main{flex:1; width:100%; max-width:1180px; margin:0 auto; padding:16px 20px 40px}
+.stage{position:relative; width:100%; aspect-ratio:16/9; background:#000; border-radius:var(--radius); overflow:hidden;
+  border:1px solid var(--line); box-shadow:0 18px 40px rgba(0,0,0,.5)}
+.stage iframe{position:absolute; inset:0; width:100%; height:100%; border:0; display:block}
+.stage:fullscreen{border-radius:0; border:0; aspect-ratio:auto}
+.overlay{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
+  padding:20px; text-align:center; background:radial-gradient(ellipse at center,#1d2333 0%,#0b0d13 100%)}
+.overlay.poster{background-size:cover; background-position:center}
+.spinner{width:44px; height:44px; border-radius:50%; border:4px solid var(--line); border-top-color:var(--accent); animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.overlay h2{margin:0; font-family:Georgia,serif; font-size:clamp(1.2rem,4vw,1.7rem)}
+.overlay p{margin:0; color:var(--muted); max-width:52ch}
+.hint{position:absolute; left:0; right:0; bottom:0; padding:10px 14px; background:rgba(17,20,29,.88); font-size:.88rem;
+  color:var(--muted); display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; justify-content:center}
+
+.btn{display:inline-flex; align-items:center; justify-content:center; min-height:46px; padding:10px 20px; border-radius:12px;
+  border:1.5px solid var(--line); background:var(--surface2); color:var(--text); font:inherit; font-weight:700; cursor:pointer; text-decoration:none}
+.btn.primary{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
+.btn:hover{filter:brightness(1.1)}
+.btn.small{min-height:40px; padding:6px 14px; font-size:.9rem}
+.actions{display:flex; flex-wrap:wrap; gap:10px; justify-content:center}
+
+.info{padding:18px 2px 8px}
+.cat{display:inline-block; font-size:.82rem; color:var(--accent); border:1px solid rgba(244,185,66,.45); border-radius:999px; padding:2px 12px}
+h1.vtitle{margin:10px 0 8px; font-family:Georgia,"Times New Roman",serif; font-size:clamp(1.6rem,5vw,2.4rem); line-height:1.15; letter-spacing:-.01em; overflow-wrap:anywhere}
+.tools{display:flex; flex-wrap:wrap; gap:10px; margin:12px 0 4px}
+.desc{margin:14px 0 0; color:var(--muted); max-width:75ch; white-space:pre-line; overflow-wrap:anywhere}
+.note{margin:14px 0 0; padding:12px 14px; border-radius:12px; border:1px solid var(--line); background:var(--surface); color:var(--muted); font-size:.9rem}
+
+.related{margin-top:34px}
+.related h2{margin:0 0 14px; font-family:Georgia,serif; font-size:1.4rem}
+.grid{display:grid; gap:16px; list-style:none; margin:0; padding:0; grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+.card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; transition:transform .2s,border-color .2s}
+.card a{display:flex; flex-direction:column; height:100%; text-decoration:none}
+@media (hover:hover){.card:hover{transform:translateY(-3px); border-color:var(--accent)}}
+.thumb{position:relative; aspect-ratio:16/9; background:var(--surface2); overflow:hidden}
+.thumb img{width:100%; height:100%; object-fit:cover; display:block}
+.fallback{width:100%; height:100%; display:flex; align-items:center; justify-content:center; font-family:Georgia,serif; font-size:2.6rem; font-weight:700; color:rgba(255,255,255,.92)}
+.play{position:absolute; right:10px; bottom:10px; width:38px; height:38px; border-radius:50%; background:rgba(17,20,29,.75); display:flex; align-items:center; justify-content:center}
+.play::before{content:""; margin-left:3px; border-style:solid; border-width:7px 0 7px 11px; border-color:transparent transparent transparent var(--accent)}
+.cbody{padding:12px 14px 14px; display:flex; flex-direction:column; gap:6px}
+.ccat{font-size:.78rem; color:var(--accent)}
+.ctitle{margin:0; font-size:1rem; line-height:1.3; font-weight:600; overflow-wrap:anywhere}
+
+.nf{text-align:center; padding:64px 20px; background:var(--surface); border:1px dashed var(--line); border-radius:var(--radius)}
+.nf h1{margin:0 0 8px; font-family:Georgia,serif}
+.nf p{margin:0 auto 20px; color:var(--muted); max-width:44ch}
+footer{padding:20px; text-align:center; color:var(--muted); font-size:.82rem; border-top:1px solid var(--line)}
+footer p{margin:4px auto; max-width:60ch}
+@media (max-width:600px){
+  .bar-in,main{padding-left:12px; padding-right:12px}
+  .stage{border-radius:12px}
+  .grid{grid-template-columns:repeat(2,1fr); gap:12px}
+}
+@media (max-width:380px){.grid{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){*{transition:none !important; animation-duration:.01ms !important}}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <div class="bar-in">
+    <a class="back" id="back" href="index.html" aria-label="Back">&larr; Back</a>
+    <p class="logo"><a href="index.html" aria-label="Movie Bussy home">Movie <span>Bussy</span></a></p>
+  </div>
+</div>
+
+<main id="main" aria-live="polite">
+  <noscript><p>This page needs JavaScript turned on to play videos.</p></noscript>
+</main>
+
+<footer>
+  <p>Videos are streamed from third-party players and are not stored on this site.</p>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+  /* ---- Shared schema helpers (identical in index.html, watch.html and admin.html) ---- */
+  /* Only these player hosts may be embedded. To add a provider, add its hostname here in all three files
+     (and nowhere else). Subdomains of a listed host are accepted. */
+  var EMBED_HOSTS = ["fembed.co"];
+  function isHttp(u) { return /^https?:\/\/\S+/i.test(u); }
+  function parseEmbed(u) {
+    u = String(u || "").trim();
+    if (!u) return { ok: false, error: "No embed link was given." };
+    var p; try { p = new URL(u); } catch (e) { return { ok: false, error: "That is not a valid link." }; }
+    if (p.protocol !== "https:") return { ok: false, error: "The embed link must start with https://" };
+    if (p.username || p.password) return { ok: false, error: "The embed link must not contain a username or password." };
+    var h = p.hostname.toLowerCase();
+    var allowed = EMBED_HOSTS.some(function (a) { return h === a || h.slice(-(a.length + 1)) === "." + a; });
+    if (!allowed) return { ok: false, error: "\u201c" + h + "\u201d is not an allowed player host. Allowed: " + EMBED_HOSTS.join(", ") + "." };
+    if (p.pathname.length < 2) return { ok: false, error: "The embed link is missing the video part after the host name." };
+    return { ok: true, href: p.href };
+  }
+  function slugify(t) {
+    var s = String(t || "");
+    try { s = s.normalize("NFKD").replace(/[\u0300-\u036f]/g, ""); } catch (e) {}
+    s = s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60).replace(/-+$/, "");
+    return s || "video";
+  }
+  function validId(id) { return /^[a-z0-9][a-z0-9_-]{0,79}$/i.test(id); }
+  /* Keeps every valid, unique id as written; generates one (from the title) only where it is missing or clashes. */
+  function assignIds(list) {
+    var used = {};
+    list.forEach(function (v) {
+      var id = String(v.id || "").trim();
+      if (validId(id) && !used[id.toLowerCase()]) { v.id = id; used[id.toLowerCase()] = 1; } else v.id = "";
+    });
+    list.forEach(function (v) {
+      if (v.id) return;
+      var base = slugify(v.title), id = base, n = 2;
+      while (used[id.toLowerCase()]) id = base + "-" + (n++);
+      v.id = id; used[id.toLowerCase()] = 1;
+    });
+    return list;
+  }
+  function playType(v) {
+    var t = String(v.playbackType || "").toLowerCase();
+    return t === "embed" || t === "external" ? t : "legacy";
+  }
+  function watchHref(id) { return "watch.html?id=" + encodeURIComponent(id); }
+
+  var main = document.getElementById("main");
+  var backBtn = document.getElementById("back");
+
+  function clean(v) {
+    v = v || {};
+    return {
+      id: String(v.id || "").trim(), title: String(v.title || "").trim(),
+      category: String(v.category || "").trim() || "Other", url: String(v.url || "").trim(),
+      playbackType: String(v.playbackType || "").trim(), embedUrl: String(v.embedUrl || "").trim(),
+      externalUrl: String(v.externalUrl || "").trim(), thumbnail: String(v.thumbnail || "").trim(),
+      keywords: Array.isArray(v.keywords) ? v.keywords.join(" ") : String(v.keywords || "").trim(),
+      description: String(v.description || "").trim()
+    };
+  }
+  function listable(v) { return !!(v.title && v.id && (isHttp(v.url) || isHttp(v.embedUrl) || isHttp(v.externalUrl))); }
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+
+  /* Back button: go back in history if the visitor came from this site, otherwise go to the homepage. */
+  backBtn.addEventListener("click", function (e) {
+    var fromHere = false;
+    try { fromHere = !!document.referrer && new URL(document.referrer).origin === location.origin; } catch (x) {}
+    if (fromHere && history.length > 1) { e.preventDefault(); history.back(); }
+  });
+
+  var palette = ["#7c5cff,#3b2a8c", "#ff6b6b,#a12c4a", "#16b8a6,#0b5e6b", "#f4b942,#b5541b", "#4da3ff,#27428f", "#e052b5,#6a2a8f"];
+  function colorFor(text) {
+    var h = 0; for (var i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) >>> 0;
+    var p = palette[h % palette.length].split(",");
+    return "linear-gradient(135deg," + p[0] + "," + p[1] + ")";
+  }
+  function fallback(v) {
+    var d = el("div", "fallback", v.title.charAt(0).toUpperCase() || "?");
+    d.style.background = colorFor(v.title); d.setAttribute("aria-hidden", "true"); return d;
+  }
+
+  function notFound(msg) {
+    document.title = "Video not found | Movie Bussy";
+    main.textContent = "";
+    var box = el("div", "nf");
+    box.appendChild(el("h1", null, "Video not found"));
+    box.appendChild(el("p", null, msg));
+    var a = el("a", "btn primary", "Back to Home"); a.href = "index.html";
+    box.appendChild(a); main.appendChild(box);
+  }
+
+  function externalLink(url, label, primary) {
+    var a = el("a", "btn" + (primary ? " primary" : ""), label);
+    a.href = url; a.target = "_blank"; a.rel = "noopener noreferrer"; return a;
+  }
+
+  /* ---- Player ---- */
+  function buildPlayer(v, stage) {
+    var type = playType(v);
+    var poster = isHttp(v.thumbnail) ? v.thumbnail : "";
+
+    function overlay(title, text, actions) {
+      var o = el("div", "overlay");
+      o.appendChild(el("h2", null, title));
+      if (text) o.appendChild(el("p", null, text));
+      if (actions && actions.length) { var row = el("div", "actions"); actions.forEach(function (a) { row.appendChild(a); }); o.appendChild(row); }
+      return o;
+    }
+
+    if (type === "embed") {
+      var chk = parseEmbed(v.embedUrl);
+      if (!chk.ok) {
+        stage.appendChild(overlay("This video can\u2019t be played here", "The saved player link was rejected: " + chk.error, [homeLink()]));
+        return null;
+      }
+      var loader = el("div", "overlay"); loader.setAttribute("role", "status");
+      loader.appendChild(el("div", "spinner")); loader.appendChild(el("p", null, "Loading player\u2026"));
+      stage.appendChild(loader);
+
+      var frame = document.createElement("iframe");
+      frame.title = "Player: " + v.title;
+      frame.setAttribute("allow", "autoplay; fullscreen; picture-in-picture; encrypted-media");
+      frame.setAttribute("allowfullscreen", "");
+      frame.setAttribute("referrerpolicy", "origin");
+      /* No sandbox attribute: many video players need scripts, popups and same-origin storage. Add one only after testing. */
+      var slow = 0;
+      function showLoading() { loader.textContent = ""; loader.appendChild(el("div", "spinner")); loader.appendChild(el("p", null, "Loading player\u2026")); }
+      function showSlow() {
+        if (!loader.parentNode) return;
+        loader.textContent = "";
+        loader.appendChild(el("p", null, "The player is taking longer than usual. The video host may be slow or may not allow playback on this site."));
+        var row = el("div", "actions");
+        var r = el("button", "btn small", "Reload player"); r.type = "button";
+        r.addEventListener("click", function () { showLoading(); frame.src = chk.href; arm(); });
+        row.appendChild(r);
+        row.appendChild(externalLink(chk.href, "Open player in a new tab", false));
+        loader.appendChild(row);
+      }
+      function arm() { clearTimeout(slow); slow = setTimeout(showSlow, 15000); }
+      arm();
+      frame.addEventListener("load", function () { clearTimeout(slow); if (loader.parentNode) loader.remove(); });
+      frame.addEventListener("error", function () { clearTimeout(slow); showFail(); });
+      function showFail() {
+        stage.textContent = "";
+        var rl = el("button", "btn primary", "Try again"); rl.type = "button";
+        rl.addEventListener("click", function () { location.reload(); });
+        stage.appendChild(overlay("The player could not load", "The video host did not respond. Check your connection and try again.", [rl, homeLink()]));
+      }
+      frame.src = chk.href;
+      stage.appendChild(frame);
+      return frame;
+    }
+
+    if (type === "external") {
+      var ext = v.externalUrl || v.url;
+      var o = overlay("Watch on the video host", "This video is hosted on another site and can\u2019t play inside Movie Bussy.", isHttp(ext) ? [externalLink(ext, "Watch on external site", true), homeLink()] : [homeLink()]);
+      if (poster) { o.classList.add("poster"); o.style.backgroundImage = "linear-gradient(rgba(11,13,19,.78),rgba(11,13,19,.88)),url(\"" + poster.replace(/["\\\n\r]/g, "") + "\")"; }
+      stage.appendChild(o); return null;
+    }
+
+    /* legacy */
+    var lo = overlay("Playback not set up yet", "This is an older entry that only has a link. Its in-site player hasn\u2019t been configured, so it can\u2019t play here yet.", isHttp(v.url) ? [externalLink(v.url, "Open original link", true), homeLink()] : [homeLink()]);
+    stage.appendChild(lo); return null;
+  }
+  function homeLink() { var a = el("a", "btn", "Back to Home"); a.href = "index.html"; return a; }
+
+  function fullscreenTools(stage, frame) {
+    var tools = el("div", "tools");
+    var fsOk = !!(stage.requestFullscreen || stage.webkitRequestFullscreen);
+    if (frame && fsOk) {
+      var b = el("button", "btn small", "Fullscreen"); b.type = "button";
+      b.addEventListener("click", function () {
+        try {
+          if (document.fullscreenElement || document.webkitFullscreenElement) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); }
+          else (stage.requestFullscreen || stage.webkitRequestFullscreen).call(stage);
+        } catch (e) {}
+      });
+      tools.appendChild(b);
+    }
+    var share = el("button", "btn small", "Copy link"); share.type = "button";
+    share.addEventListener("click", function () {
+      var url = location.href, done = function () { share.textContent = "Link copied"; setTimeout(function () { share.textContent = "Copy link"; }, 2000); };
+      if (navigator.share && /Android|iPhone|iPad/i.test(navigator.userAgent)) { navigator.share({ title: document.title, url: url }).catch(function () {}); }
+      else if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(url).then(done, function () {}); }
+    });
+    tools.appendChild(share);
+    return tools;
+  }
+
+  function renderRelated(list, cur) {
+    var others = list.filter(function (x) { return x.id !== cur.id; });
+    others.sort(function (a, b) { return (b.category === cur.category) - (a.category === cur.category); });
+    others = others.slice(0, 8);
+    if (!others.length) return null;
+    var sec = el("section", "related"); sec.setAttribute("aria-labelledby", "relh");
+    var h = el("h2", null, "Related Videos"); h.id = "relh"; sec.appendChild(h);
+    var ul = el("ul", "grid");
+    others.forEach(function (v) {
+      var li = el("li", "card"), a = el("a"); a.href = watchHref(v.id);
+      a.setAttribute("aria-label", "Watch " + v.title);
+      var th = el("div", "thumb");
+      if (isHttp(v.thumbnail)) {
+        var img = document.createElement("img"); img.loading = "lazy"; img.alt = ""; img.referrerPolicy = "no-referrer";
+        img.onerror = function () { if (img.parentNode) img.parentNode.replaceChild(fallback(v), img); };
+        img.src = v.thumbnail; th.appendChild(img);
+      } else th.appendChild(fallback(v));
+      th.appendChild(el("span", "play"));
+      var body = el("div", "cbody"); body.appendChild(el("span", "ccat", v.category)); body.appendChild(el("h3", "ctitle", v.title));
+      a.appendChild(th); a.appendChild(body); li.appendChild(a); ul.appendChild(li);
+    });
+    sec.appendChild(ul); return sec;
+  }
+
+  function start(raw) {
+    var list = assignIds(raw.map(clean)).filter(listable);
+    var id = new URLSearchParams(location.search).get("id");
+    if (!id) return notFound("No video was chosen. Pick one from the home page.");
+    var v = null;
+    list.forEach(function (x) { if (!v && x.id === id) v = x; });
+    if (!v) return notFound("We couldn\u2019t find that video. It may have been removed, or the link may be wrong.");
+
+    document.title = v.title + " | Movie Bussy";
+    main.textContent = "";
+    var stage = el("div", "stage"); stage.id = "stage";
+    main.appendChild(stage);
+    var frame = buildPlayer(v, stage);
+
+    var info = el("div", "info");
+    info.appendChild(el("span", "cat", v.category));
+    info.appendChild(el("h1", "vtitle", v.title));
+    info.appendChild(fullscreenTools(stage, frame));
+    if (v.description) info.appendChild(el("p", "desc", v.description));
+    if (playType(v) === "embed" && parseEmbed(v.embedUrl).ok) {
+      info.appendChild(el("p", "note", "If the video doesn\u2019t start, tap the play button in the player. Some video hosts only allow playback on approved websites."));
+    }
+    main.appendChild(info);
+    var rel = renderRelated(list, v); if (rel) main.appendChild(rel);
+  }
+
+  var s = document.createElement("script");
+  s.src = "videos.js?v=" + Math.floor(Date.now() / 60000);
+  s.onload = function () { start(Array.isArray(window.VIDEOS) ? window.VIDEOS : []); };
+  s.onerror = function () { notFound("The video list could not be loaded. Please refresh the page."); };
+  document.head.appendChild(s);
+})();
+</script>
+</body>
+</html>
